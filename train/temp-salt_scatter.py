@@ -14,7 +14,7 @@ def scatter_plot(temp, salt, time_value, fig_no):
 	"""
 	Plots temperature and salinity on a scatter plot
 	"""
-	fig = plt.figure(1)
+	fig = plt.figure(fig_no)
 	plt.scatter(salt, temp, s=5, alpha=0.3)
 	plt.ylabel('Temperature', fontsize=14)
 	plt.xlabel('Salinity', fontsize=14)
@@ -35,10 +35,11 @@ def grab_sst_time(time_idx):
 # get list of files in data directory
 directory = "/Users/lachlanphillips/PhD_Large_Data/ROMS/Montague_subset"
 file_ls = [f for f in listdir(directory) if isfile(join(directory, f))]
+file_ls = list(filter(lambda x:'naroom_avg' in x, file_ls))
 
 # make random plots
 # set randomness seed
-plot_num = 9
+plot_num = 20
 np.random.seed(1010)
 rnd_file = np.random.randint(len(file_ls), size=plot_num)
 rnd_times = np.random.randint(29, size=plot_num)
@@ -61,7 +62,7 @@ for i in range(0, plot_num-1):
 	salt = fh.variables['salt'][time_idx,29,:,:] 
 	plot_ls[i] = scatter_plot(temp, salt, time_value, i)
 
-plt.show(plot_ls[2])
+plt.show()
 
 
 
