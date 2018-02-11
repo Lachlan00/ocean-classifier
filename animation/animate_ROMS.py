@@ -17,6 +17,8 @@ from datetime import datetime, timedelta #for working with datetimes
 import moviepy.editor as mpy # creates animation
 from moviepy.video.io.bindings import mplfig_to_npimage # converts map to numpy array
 from matplotlib.backends.backend_agg import FigureCanvasAgg # draws canvas so that map can be converted
+from os import listdir
+from os.path import isfile, join
 
 # define animation buiding functions
 ##########__FUNCTIONS__##########
@@ -52,11 +54,17 @@ def make_frame_temp(frame_idx):
     fig = plt.figure()
     fig.subplots_adjust(left=0., right=1., bottom=0., top=0.9)
     # Setup the map
-    m = Basemap(projection='merc', llcrnrlat=-38.050653, urcrnrlat=-34.453367,\
-            llcrnrlon=147.996456, urcrnrlon=152.457344, lat_ts=20, resolution='h')
+    # m = Basemap(projection='merc', llcrnrlat=-38.050653, urcrnrlat=-34.453367,\
+    #         llcrnrlon=147.996456, urcrnrlon=152.457344, lat_ts=20, resolution='h') # full range
+    # m = Basemap(projection='merc', llcrnrlat=-36.701671, urcrnrlat=-35.802349,\
+    #         llcrnrlon=149.669301, urcrnrlon=150.784499, lat_ts=20, resolution='h') # 100km^2
+    m = Basemap(projection='merc', llcrnrlat=-36.476840, urcrnrlat=-36.027180,\
+            llcrnrlon=149.948101, urcrnrlon=150.505699, lat_ts=20, resolution='h') # 50km^2
     # draw stuff
-    m.drawcoastlines()
-    m.fillcontinents(color='black')
+    # m.drawcoastlines() # comment out when using shapefile
+    # m.fillcontinents(color='black')
+    # use shapefile coastline
+    m.readshapefile('/Users/lachlanphillips/Dropbox/PhD/Data/GIS/shp_files/NSW-coastline/Edited/polygon/NSW-coastline_WGS84', 'NSW-coastline_WGS84')
     # plot salt
     cs = m.pcolor(lons,lats,np.squeeze(temp), latlon = True ,vmin=temp_min, vmax=temp_max, cmap='plasma')
     # plot colourbar
@@ -94,11 +102,17 @@ def make_frame_salt(frame_idx):
     fig = plt.figure()
     fig.subplots_adjust(left=0., right=1., bottom=0., top=0.9)
     # Setup the map
-    m = Basemap(projection='merc', llcrnrlat=-38.050653, urcrnrlat=-34.453367,\
-            llcrnrlon=147.996456, urcrnrlon=152.457344, lat_ts=20, resolution='h')
+    # m = Basemap(projection='merc', llcrnrlat=-38.050653, urcrnrlat=-34.453367,\
+    #         llcrnrlon=147.996456, urcrnrlon=152.457344, lat_ts=20, resolution='h') # full range
+    # m = Basemap(projection='merc', llcrnrlat=-36.701671, urcrnrlat=-35.802349,\
+    #         llcrnrlon=149.669301, urcrnrlon=150.784499, lat_ts=20, resolution='h') # 100km^2
+    m = Basemap(projection='merc', llcrnrlat=-36.476840, urcrnrlat=-36.027180,\
+            llcrnrlon=149.948101, urcrnrlon=150.505699, lat_ts=20, resolution='h') # 50km^2
     # draw stuff
-    m.drawcoastlines()
-    m.fillcontinents(color='black')
+    # m.drawcoastlines() # comment out when using shapefile
+    # m.fillcontinents(color='black')
+    # use shapefile coastline
+    m.readshapefile('/Users/lachlanphillips/Dropbox/PhD/Data/GIS/shp_files/NSW-coastline/Edited/polygon/NSW-coastline_WGS84', 'NSW-coastline_WGS84')
     # plot salt
     cs = m.pcolor(lons,lats,np.squeeze(salt), latlon = True ,vmin=salt_min, vmax=salt_max, cmap='viridis')
     # plot colourbar
@@ -116,36 +130,53 @@ def make_frame_salt(frame_idx):
     
     return frame
 
-# import file
-print('loading data...')
-nc_file = '/Users/lachlanphillips/PhD_Large_Data/ROMS/Montague_subset/naroom_avg_02601.nc'
-fname = '02601'
-fh = Dataset(nc_file, mode='r')
-
-#extract lats, lons and time
-lats = fh.variables['lat_rho'][:] 
-lons = fh.variables['lon_rho'][:]
-time = fh.variables['ocean_time'][:]
-
+# MAIN PROGRAM
 # set colour scale variables
-temp_min = 14
-temp_max = 24 
-salt_min = 35.1
+temp_min = 13
+temp_max = 25 
+salt_min = 35.3
 salt_max = 35.7
 
-# make animations
-output_name = 'test_animation_salt.gif'
-animation = mpy.VideoClip(make_frame_salt, duration=30)
-animation.write_gif(output_name, fps=1)
+# get list of files in data directory
+in_directory = "/Users/lachlanphillips/PhD_Large_Data/ROMS/Montague_subset"
+file_ls = [f for f in listdir(in_directory) if isfile(join(in_directory, f))]
+file_ls = list(filter(lambda x:'naroom_avg' in x, file_ls))
+file_ls = sorted(file_ls)
 
-output_name2 = 'test_animation_temp.gif'
-animation = mpy.VideoClip(make_frame_temp, duration=30)
-animation.write_gif(output_name2, fps=1)
-#animation.write_videofile('animation.mp4', fps=1)
+# set output directory
+out_directory = "/Users/lachlanphillips/PhD_Large_Data/ROMS/gifs"
 
-# close nc file
-print('closing file...')
-fh.close()
+# set range
+start = 47
+end = 48
+# make animation for each file (will take over 10 hours)
+for i in range(start, end):
+    # import file
+    nc_file = in_directory + '/' + file_ls[i]
+    fh = Dataset(nc_file, mode='r')
+    print('Building animations with file: '+file_ls[i]+' | '+str(i+1)+' of '+ str(len(file_ls)))
+    fname = str(file_ls[i])[11:16]
+
+    # set gif names
+    out_temp = out_directory+'/mont-zoom-100km/'+'temp'+str(i+1).zfill(3)+'.gif'
+    out_salt = out_directory+'/mont-zoom-100km/'+'salt'+str(i+1).zfill(3)+'.gif'
+
+    # extract data
+    lats = fh.variables['lat_rho'][:] 
+    lons = fh.variables['lon_rho'][:]
+    time = fh.variables['ocean_time'][:]
+
+    # make animations
+    frame_count = 30 #len(time)
+    # salt
+    animation = mpy.VideoClip(make_frame_salt, duration=frame_count)
+    animation.write_gif(out_salt, fps=1)
+    # temp
+    animation = mpy.VideoClip(make_frame_temp, duration=frame_count)
+    animation.write_gif(out_temp, fps=1)
+    # close file
+    fh.close()
+
 print('-----Program End-----')
 
 print('')
@@ -168,8 +199,7 @@ print('´´´¶¶¶¶¶¶¶¶¶¶¶¶´´´´´¶¶´´´´´´´´´´´´¶¶�
 print('´´´´´´´´´´´´´´´´´´´´´´´¶¶¶¶¶¶¶¶¶¶¶…….)')
 print('')
 print('Tip: To increase fame speed, use the following commands to use imagemagick from terminal:')
-print('convert -delay 25x100 ' + output_name + ' ' + output_name)
-print('convert -delay 25x100 ' + output_name2 + ' ' + output_name2)
+print('convert -delay 25x100 gif_name.gif gif_name.gif')
 print('NetCDF animation builder v-2.0 does not currently support subplots.')
 print('For now use "https://ezgif.com/combine" to join the gifs.')
 

@@ -47,7 +47,7 @@ rnd_times = np.random.randint(29, size=plot_num)
 # save plot to list
 plot_ls = list(range(0, plot_num))
 # make the plots
-for i in range(0, plot_num-1):
+for i in range(0, plot_num):
 	# grab file
 	file_no = rnd_file[i]
 	file_path = directory + "/" + file_ls[file_no]
