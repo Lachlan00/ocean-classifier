@@ -3,9 +3,9 @@ Notes on ROMS nc files for Montague subset
 Dimensions
 ----------
 165*116*30*30 = 17226000 data points
-165*116 is lat and lon where 30 and 30 is depth and time
-Y axis = eta_Rho (lat)
-X axis = xi_rho (lon)
+165*116 is lat and lon where 30 and 30 is depth and time 
+Y axis = eta_Rho (lat) [116]
+X axis = xi_rho (lon) [165]
 
 Variables
 ----------

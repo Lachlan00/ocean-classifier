@@ -6,6 +6,7 @@ setting global variables insdie functions). Be very cautiois if
 extending out this code to other purposes.
 """
 
+# for main program
 from netCDF4 import Dataset # reads netCDF file
 from os import listdir
 from os.path import isfile, join
@@ -16,6 +17,21 @@ from datetime import datetime, timedelta # for working with datetimes
 from random import randint
 import numpy as np
 import pandas as pd
+
+# for tunnel function
+from math import pi
+from numpy import cos, sin
+
+# __Setup__
+
+# number of plots to generate
+plot_num = 15
+
+# set colour scale variables
+temp_min = 14
+temp_max = 24
+salt_min = 35.3
+salt_max = 35.7
 
 # __FUNCTIONS__
 
@@ -142,17 +158,7 @@ def onclick(event):
 	# datlon, datlat = m(xpti,ypti,inverse=True)
 
 	global train_data
-	train_data.append((xpti, ypti, mass, time_value))
-
-
-
-# __Setup__
-
-# set colour scale variables
-temp_min = 14
-temp_max = 24
-salt_min = 35.3
-salt_max = 35.7
+	train_data.append((xpti, ypti, mass, time_value, rand))
 
 # list to hold data collected
 train_data = []
@@ -164,10 +170,10 @@ directory = "/Users/lachlanphillips/PhD_Large_Data/ROMS/Montague_subset"
 file_ls = [f for f in listdir(directory) if isfile(join(directory, f))]
 file_ls = list(filter(lambda x:'naroom_avg' in x, file_ls))
 
-
 # set randomness seed
-plot_num = 1
-np.random.seed(1010)
+rand = randint(10000, 999999)
+print('Generating ' + str(plot_num) + ' plot(s) with random seed: ' + str(rand))
+np.random.seed(rand)
 rnd_file = np.random.randint(len(file_ls), size=plot_num)
 rnd_times = np.random.randint(29, size=plot_num)
 
@@ -216,8 +222,73 @@ for i in range(0, plot_num):
 # convert to dataframe
 print('__TEST__')
 df = pd.DataFrame(train_data)
-df.columns = ['lon', 'lat', 'class', 'datetime']
-print(df)
+df.columns = ['lon', 'lat', 'class', 'datetime', 'seed']
+
+# convert lat/lon trainign data to i,j array and salinity/temperatuyre
+
+# NOTE!!!! NOT SURE IF THIS METHOD IS THE CORRECT GRID CELL
+# MAY BE NEAREST GRID CELL CORNER... Need to check this
+def tunnel_fast(latvar,lonvar,lat0,lon0):
+    '''
+    Find closest point in a set of (lat,lon) points to specified point
+    latvar - 2D latitude variable from an open netCDF dataset
+    lonvar - 2D longitude variable from an open netCDF dataset
+    lat0,lon0 - query point
+    Returns iy,ix such that the square of the tunnel distance
+    between (latval[it,ix],lonval[iy,ix]) and (lat0,lon0)
+    is minimum.
+    '''
+    rad_factor = pi/180.0 # for trignometry, need angles in radians
+    # Read latitude and longitude from file into numpy arrays
+    latvals = latvar[:] * rad_factor
+    lonvals = lonvar[:] * rad_factor
+    ny,nx = latvals.shape
+    lat0_rad = lat0 * rad_factor
+    lon0_rad = lon0 * rad_factor
+    # Compute numpy arrays for all values, no loops
+    clat,clon = cos(latvals),cos(lonvals)
+    slat,slon = sin(latvals),sin(lonvals)
+    delX = cos(lat0_rad)*cos(lon0_rad) - clat*clon
+    delY = cos(lat0_rad)*sin(lon0_rad) - clat*slon
+    delZ = sin(lat0_rad) - slat;
+    dist_sq = delX**2 + delY**2 + delZ**2
+    minindex_1d = dist_sq.argmin()  # 1D index of minimum element
+    iy_min,ix_min = np.unravel_index(minindex_1d, latvals.shape)
+    return iy_min,ix_min
+
+grid_values = [] # (eta_rho/xi_rho) 
+
+for i, row in df.iterrows():
+	value = tunnel_fast(lats,lons,row['lat'],row['lon'])#/60/60 # hour conversion 
+	grid_values.append(value)
+
+data = pd.DataFrame(grid_values)
+data.columns = ['eta_rho', 'xi_rho']
+
+# get temp and salinity data
+temp_values = []
+salt_values = []
+
+for i, row in data.iterrows():
+	temp_val = fh.variables['temp'][time_idx,29,row['eta_rho'],row['xi_rho']]
+	salt_val = fh.variables['salt'][time_idx,29,row['eta_rho'],row['xi_rho']]
+	temp_values.append(temp_val)
+	salt_values.append(salt_val)
+
+# merge data
+data["temp"] = temp_values
+data["salt"] = salt_values
+data = pd.concat([df, data], axis=1)
+
+print(data)
+
+# save to csv
+output_fn = './data_output/train-data_seed-' + str(rand) + '.csv'
+data.to_csv(output_fn, index=False)
+
+print('** Traing data gerneation complete **')
+
+
 
 
 
