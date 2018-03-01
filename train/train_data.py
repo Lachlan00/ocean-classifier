@@ -25,7 +25,7 @@ from numpy import cos, sin
 # __Setup__
 
 # number of plots to generate
-plot_num = 15
+plot_num = 2
 
 # set colour scale variables
 temp_min = 14
@@ -237,6 +237,7 @@ def tunnel_fast(latvar,lonvar,lat0,lon0):
     Returns iy,ix such that the square of the tunnel distance
     between (latval[it,ix],lonval[iy,ix]) and (lat0,lon0)
     is minimum.
+    Obtained from here: https://tinyurl.com/yba3x46l
     '''
     rad_factor = pi/180.0 # for trignometry, need angles in radians
     # Read latitude and longitude from file into numpy arrays
@@ -287,13 +288,6 @@ output_fn = './data_output/train-data_seed-' + str(rand) + '.csv'
 data.to_csv(output_fn, index=False)
 
 print('** Traing data gerneation complete **')
-
-
-
-
-
-
-
 
 
 

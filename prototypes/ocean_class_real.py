@@ -86,6 +86,35 @@ def plot_temp(temp, time_idx):
     # stop axis from being cropped
     plt.tight_layout()
 
+def plot_salt(salt, time_idx):
+    """
+    Make maps of temperature and salinity
+    """
+
+    # make frame__idx an integer to avoid slicing errors
+    frame_idx = int(time_idx)
+
+    # get 'frame_time'
+    frame_time = grab_sst_time(frame_idx)
+
+    # map setup
+    fig = plt.figure()
+    fig.subplots_adjust(left=0., right=1., bottom=0., top=0.9)
+    # Setup the map
+    m = Basemap(projection='merc', llcrnrlat=-38.050653, urcrnrlat=-34.453367,\
+            llcrnrlon=147.996456, urcrnrlon=152.457344, lat_ts=20, resolution='h') # full range
+    # draw stuff
+    m.drawcoastlines() # comment out when using shapefile
+    m.fillcontinents(color='black')
+    # plot salt
+    cs = m.pcolor(lons,lats,np.squeeze(salt), latlon = True ,vmin=salt_min, vmax=salt_max, cmap='viridis')
+    # plot colourbar
+    plt.colorbar()
+    # datetime title
+    plt.title('Regional - Salinity (PSU)\n' + frame_time.strftime("%Y-%m-%d %H:%M:%S") + ' | ' + str(fname) + '_idx: ' + str(frame_idx))
+    # stop axis from being cropped
+    plt.tight_layout()
+
 def plot_prob(probs, time_idx):
     """
     Make maps of temperature and salinity
@@ -180,10 +209,8 @@ prob_EAC = np.asarray(prob_EAC)
 prob_EAC = np.reshape(prob_EAC, (-1, 165))
 
 # make plots
-fig1 = plot_temp(temp, time_idx)
-fig1 = plot_prob(prob_EAC, time_idx)
+fig = plot_temp(temp, time_idx)
+# fig = plot_salt(salt, time_idx)
+fig = plot_prob(prob_EAC, time_idx)
 
 plt.show()
-
-
-
