@@ -29,7 +29,7 @@ from numpy import cos, sin
 # __Setup__
 
 # number of plots to generate
-plot_num = 1
+plot_num = 10
 
 # set colour scale variables
 temp_min = 14
@@ -59,7 +59,7 @@ longstring2 = """\
    ~^~ ~^~^ ~ '======' `~^-~~^~-^~^_~^~~ -=====- ~^~^~-~^~^~^~~^~
    ~^~  ~^~ ~^ ~^~ ~^~^ ~^~-~^~~^~-~^~~-~^~^~-~^~~^-~^~^~^-~^~^~^~
   ~^~ ~^~ ~^~ ~^ ~^~ ~^~^ ~^~-~^~~^~-~^~~-~^~^~-~^~~^-~^~^~^-~^~^~^~ 
-      *The sun setting is no less beautiful than the sun rising.*
+      The sun setting is no less beautiful than the sun rising.
 
 ** End Program **
 """
