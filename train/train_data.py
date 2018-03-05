@@ -4,6 +4,10 @@ WARNING: This code is currentl;y very messey and hacked together
 using method that are generally consdiered bad practice (e.g. 
 setting global variables insdie functions). Be very cautiois if
 extending out this code to other purposes.
+ASCII art from:
+http://www.chris.com/ascii/
+http://ascii.co.uk/art/wave
+
 """
 
 # for main program
@@ -25,13 +29,40 @@ from numpy import cos, sin
 # __Setup__
 
 # number of plots to generate
-plot_num = 2
+plot_num = 1
 
 # set colour scale variables
 temp_min = 14
 temp_max = 24
 salt_min = 35.3
 salt_max = 35.7
+
+# Funstuff to add
+longstring1 = """\
+      .-``'.     EAC Data Training      .'''-.
+    .`   .`~     G E N E R A T O R      ~`.   '.
+_.-'     '.~                            _.'     '-._
+~^~ ~^~ ~^~ ~^~ ~^~ ~^~ ~^~ ~^~ ~^~ ~^~ ~^~ ~^~ ~^~ ~
+"""
+longstring2 = """\
+                    Training Complete!
+                    ------------------
+                      .--.-.
+                     ( (    )__ 
+      ^^            (_,  \ ) ,_)
+          ^^          '-'--`--'             |    
+                                        \       /  
+                 ~,                       .-'-.  
+                 /|                  --  /     \  --  
+     ~^~`^~^`^~ / |\ ~^~~^~``~~^~~^^~^~^-=======-~^~^~^~~^~~^~^~ 
+    ~^~ ~^~ ^~ /__|_\~^~ ~^~^~^~_~^~^_~-=========- -~^~^~^^~^_~
+   ~^~ ~^~^ ~ '======' `~^-~~^~-^~^_~^~~ -=====- ~^~^~-~^~^~^~~^~
+   ~^~  ~^~ ~^ ~^~ ~^~^ ~^~-~^~~^~-~^~~-~^~^~-~^~~^-~^~^~^-~^~^~^~
+  ~^~ ~^~ ~^~ ~^ ~^~ ~^~^ ~^~-~^~~^~-~^~~-~^~^~-~^~~^-~^~^~^-~^~^~^~ 
+      *The sun setting is no less beautiful than the sun rising.*
+
+** End Program **
+"""
 
 # __FUNCTIONS__
 
@@ -160,19 +191,39 @@ def onclick(event):
 	global train_data
 	train_data.append((xpti, ypti, mass, time_value, rand))
 
+# __MAIN_PROGRAM__
+
+print('\n' + longstring1)
+
 # list to hold data collected
 train_data = []
 
-# __Random Data_
+# __Random Data__
 
 # get list of files in data directory
 directory = "/Users/lachlanphillips/PhD_Large_Data/ROMS/Montague_subset"
 file_ls = [f for f in listdir(directory) if isfile(join(directory, f))]
 file_ls = list(filter(lambda x:'naroom_avg' in x, file_ls))
 
-# set randomness seed
-rand = randint(10000, 999999)
-print('Generating ' + str(plot_num) + ' plot(s) with random seed: ' + str(rand))
+# get list of used seeds
+check_ls = [f for f in listdir('./data_output') if isfile(join('./data_output', f))]
+check_ls = list(filter(lambda x:'train-data_seed' in x, check_ls)) # filter out any strange data in the folder
+check_ls = list(map(lambda x: int(x[16:22]), check_ls)) # make list of used seed integers
+
+# temp rand variable
+rand = check_ls[1]
+
+# check if seed has been used
+print('Generating original random seed...')
+while rand in check_ls:
+    rand = randint(100000, 999999)
+    if rand in check_ls:
+        print('Seed ' + str(rand) + ' has already been used! \nGenerating new seed..')
+    else:
+        print('Seed set as: ' + str(rand))
+
+# generate plots
+print('\nGenerating ' + str(plot_num) + ' plot(s) with random seed: ' + str(rand))
 np.random.seed(rand)
 rnd_file = np.random.randint(len(file_ls), size=plot_num)
 rnd_times = np.random.randint(29, size=plot_num)
@@ -204,7 +255,7 @@ for i in range(0, plot_num):
 
 	# Select EAC
 	mass = 'EAC'
-	print('Select EAC water')
+	print('\nSelect EAC water')
 	input("Press Enter to continue...")
 	plt.show()
 
@@ -215,12 +266,12 @@ for i in range(0, plot_num):
 
 	# Select BS 
 	mass = 'BS'
-	print('Select bass strait water')
+	print('\nSelect bass strait water')
 	input("Press Enter to continue...")
 	plt.show()
 
 # convert to dataframe
-print('__TEST__')
+print('\n__Selected_Points__\n')
 df = pd.DataFrame(train_data)
 df.columns = ['lon', 'lat', 'class', 'datetime', 'seed']
 
@@ -287,15 +338,4 @@ print(data)
 output_fn = './data_output/train-data_seed-' + str(rand) + '.csv'
 data.to_csv(output_fn, index=False)
 
-print('** Traing data gerneation complete **')
-
-
-
-
-
-
-
-
-
-
-
+print('\n' + longstring2)
