@@ -6,7 +6,7 @@ based on temperature and salinity profiles.
 TEST: use real data
 """
 
-print('_____Extracting_EAC_Ratio_Stack_____')
+print('_____Building_Animation_____')
 
 # import modules
 import pandas as pd
@@ -23,7 +23,6 @@ from datetime import datetime, timedelta # for working with datetimes
 from netCDF4 import Dataset # reads netCDF file
 from os import listdir
 from os.path import isfile, join
-from itertools import compress # for filteriung using boolean masks
 
 # animation modules
 import moviepy.editor as mpy # creates animation
@@ -38,23 +37,16 @@ parser.add_argument('input_csv_file', type=argparse.FileType('r'))
 # parser.add_argument('output_csv_file', type=argparse.FileType('w')) 
 args = parser.parse_args()
 
-# set range for data to collect
-xmin = 149.669301
-xmax = 150.784499
-ymin = -36.701671
-ymax = -35.802349
-
 # set colour scale variables
 prob_max = 1.
 prob_min = 0.
 
 # lists to collect ratio data
 yEAC = []
-yTSW = []
-yEACr = []
-yTSWr = []
 xtime = []
-xmonth = []
+
+# add to list witout append
+def add(lst, obj, index): return lst[:index] + [obj] + lst[index:]
 
 # for getting time data
 def grab_sst_time(time_idx):
@@ -68,26 +60,29 @@ def grab_sst_time(time_idx):
     frame_time = dtcon_offset
     return frame_time
 
-def grab_prob(time_idx):
+def plot_prob(time_idx):
+    """
+    Make maps of temperature and salinity
+    """
+    # close previous figures to free up memory
+    plt.close('all')
+
     # make frame__idx an integer to avoid slicing errors
     frame_idx = int(time_idx)
+
     # get 'frame_time'
     frame_time = grab_sst_time(frame_idx)
 
-    # get list of temperature and salinity values from subset
-    temp = []
-    salt = []
-
-    # append values
-    for i, j in point_list:
-    	temp.append(fh.variables['temp'][frame_idx,29,i,j])
-    	salt.append(fh.variables['salt'][frame_idx,29,i,j])
-
-    data = {'var1': temp, 'var2': salt}
+    # Get probs
+    temp = fh.variables['temp'][frame_idx,29,:,:] 
+    salt = fh.variables['salt'][frame_idx,29,:,:]
+    # ravel to 1D array
+    temp1d = temp.ravel()
+    salt1d = salt.ravel()
+    # make data frame and replace NaNs
+    data = {'var1': temp1d, 'var2': salt1d}
     data = pd.DataFrame(data=data)
-    # remove masked floats
-    data = data[data.var1 >= 1]
-
+    data = data.fillna(-9999)
     # calculate probabilities
     probs = lr_model.predict_proba(data[['var1','var2']])
     prob_TSW, prob_EAC = zip(*probs)
@@ -97,19 +92,44 @@ def grab_prob(time_idx):
     prob_EAC = [x if x != 0.0 else np.nan for x in prob_EAC]
     # make 1D array
     prob_EAC = np.asarray(prob_EAC)
-    # make 2D array (not required in subset as not being plotted)
-    # prob_EAC = np.reshape(prob_EAC, (-1, 165))
+    # make 2D array
+    prob_EAC = np.reshape(prob_EAC, (-1, 165))
 
     # calulcate ratio metric
     count_EAC = np.count_nonzero(prob_EAC > 0.5)
     count_TSW = np.count_nonzero(prob_EAC < 0.5)
-    # add to lists
-    yEAC.append(count_EAC)
-    yTSW.append(count_TSW)
-    yEACr.append(count_EAC/473)
-    yTSWr.append(count_TSW/473)
-    xtime.append(frame_time)
-    xmonth.append(frame_time.month)
+    
+    # add to lists # GLOBAL
+    global yEAC, xtime, list_count
+    yEAC, xtime = add(yEAC, count_EAC, list_count), add(xtime, frame_time, list_count)
+    list_count = list_count + 1
+
+    # map setup
+    fig = plt.figure()
+    fig.subplots_adjust(left=0., right=1., bottom=0., top=0.9)
+    # Setup the map
+    m = Basemap(projection='merc', llcrnrlat=-38.050653, urcrnrlat=-34.453367,\
+            llcrnrlon=147.996456, urcrnrlon=152.457344, lat_ts=20, resolution='h') # full range
+    # draw stuff
+    m.drawcoastlines() # comment out when using shapefile
+    m.fillcontinents(color='black')
+    # plot salt
+    cs = m.pcolor(lons,lats,np.squeeze(prob_EAC), latlon = True ,vmin=prob_min, vmax=prob_max, cmap='bwr')
+    # plot colourbar
+    plt.colorbar()
+    # datetime title
+    plt.title('Regional - EAC Probability\n' + frame_time.strftime("%Y-%m-%d %H:%M:%S") + ' | ' + 
+        str(fname) + '_idx: ' + str(frame_idx).zfill(2))
+    # stop axis from being cropped
+    plt.tight_layout()
+
+    #convert to array
+    canvas = FigureCanvasAgg(fig)
+    canvas.draw()
+    frame = np.fromstring(canvas.tostring_rgb(), dtype='uint8')
+    frame = frame.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+
+    return frame
 
 # __Make_Model__
 
@@ -141,72 +161,66 @@ file_ls = [f for f in listdir(in_directory) if isfile(join(in_directory, f))]
 file_ls = list(filter(lambda x:'naroom_avg' in x, file_ls))
 file_ls = sorted(file_ls)
 
+# set output directory
+out_directory = "/Users/lachlanphillips/PhD_Large_Data/ROMS/gifs"
+
 # set range
 start = 0
-end = 277 # for 277 files (zero index but range() does not include last number)
-
-# get lats and lons
-nc_file = in_directory + '/' + file_ls[0]
-fh = Dataset(nc_file, mode='r')
-lats = fh.variables['lat_rho'][:] 
-lons = fh.variables['lon_rho'][:]
-# combine to list of tuples
-point_tuple = zip(lats.ravel(), lons.ravel())
-point_list = []
-
-j = 0
-# iterate over tuple points and keep every point that is in box
-for i in point_tuple:
-	if ymin <= i[0] <= ymax and xmin <= i[1] <=xmax:
-		point_list.append(j)
-	j = j + 1
-
-# make point list into tuple list of array coordinates
-eta_rho = []
-xi_rho = []
-for i in point_list:
-	eta_rho.append(int(i/165))
-	xi_rho.append(int(i%165))
-
-point_list = zip(eta_rho,xi_rho)
-point_list = set(point_list) # due to zip behaviour in Python3
-
-# get data for each file (may take a while)
+end = 2 # for 277 files (zero index)
+# make animation for each file (will take over 10 hours)
+list_count = 0
 for i in range(start, end):
     # import file
     nc_file = in_directory + '/' + file_ls[i]
     fh = Dataset(nc_file, mode='r')
-    print('getting data from file: '+file_ls[i]+' | '+str(i+1)+' of '+ str(len(file_ls)))
-    # fname = str(file_ls[i])[11:16]
+    print('Building animations with file: '+file_ls[i]+' | '+str(i+1)+' of '+ str(len(file_ls)))
+    fname = str(file_ls[i])[11:16]
 
-    # extract time
+    # set gif names
+    out_prob = out_directory+'/full_run/class_index/'+'prob'+str(i+1).zfill(3)+'.gif'
+
+    # extract data
+    lats = fh.variables['lat_rho'][:] 
+    lons = fh.variables['lon_rho'][:]
     time = fh.variables['ocean_time'][:]
 
-    # get data
-    for i in range(0, len(time)):
-        grab_prob(i)
+    # make animations
+    frame_count = len(time)
+    animation = mpy.VideoClip(plot_prob, duration=frame_count)
+    animation.write_gif(out_prob, fps=1)
     # close file
     fh.close()
 
 # make dataframe from ratio metric lists
-df_ratio  = {'yEAC': yEAC, 'yTSW': yTSW, 'yEACr': yEACr, 'yTSWr': yTSWr, 'xtime': xtime, 'xmonth': xmonth}
+df_ratio  = {'yEAC': yEAC, 'xtime': xtime}
 df_ratio = pd.DataFrame(data=df_ratio)
+df_ratio['yTSW'] = [12121 - x for x in df_ratio['yEAC']]
+df_ratio['yEACr'] = [x/12121 for x in df_ratio['yEAC']]
+df_ratio['yTSWr'] = [x/12121 for x in df_ratio['yTSW']]
+df_ratio['xmonth'] = [x.month for x in df_ratio['xtime']]
 # remove duplicates
 df_ratio = df_ratio.drop_duplicates('xtime').reset_index()
+print(df_ratio)
 print(df_ratio)
 
 # save to csv
 print('_____Please_Wait_____')
 print('Writing ocean data to file...')
-output_fn = '../montague_ratio-stack/output/' + 'mont-stack2_' + str(start).zfill(3) + '-' + str(end).zfill(3) + '.csv' 
+dt = datetime.now()
+dt = dt.strftime('%Y%m%d-%H%M')
+output_fn = '../outputs/classification_stack/' + 'index-stack_' + str(start).zfill(3) + '-' + str(end).zfill(3) + '_' + dt + '.csv' 
 df_ratio.to_csv(output_fn, index=False)
 
 # make stack plot of results
 print('Displaying plot - close plot to continue...')
 plt.close('all')
 fig, ax = plt.subplots()
-ax.stackplot(xtime, yTSWr, yEACr)
+ax.stackplot(df_ratio['xtime'], df_ratio['yTSWr'], df_ratio['yEACr'])
 plt.show()
 
 print('_____Program_End_____')
+print('Tip: To increase fame speed, use the following commands to use imagemagick from terminal:')
+print('convert -delay 25x100 gif_name.gif gif_name.gif')
+print('NetCDF animation builder v-2.0 does not currently support subplots.')
+print('For now use "https://ezgif.com/combine" to join the gifs.')
 

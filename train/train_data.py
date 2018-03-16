@@ -21,15 +21,13 @@ from datetime import datetime, timedelta # for working with datetimes
 from random import randint
 import numpy as np
 import pandas as pd
+import sys # for data input
 
 # for tunnel function
 from math import pi
 from numpy import cos, sin
 
 # __Setup__
-
-# number of plots to generate
-plot_num = 10
 
 # set colour scale variables
 temp_min = 14
@@ -193,7 +191,11 @@ def onclick(event):
 
 # __MAIN_PROGRAM__
 
-print('\n' + longstring1)
+print('\n' + longstring1 + '\n')
+
+# number of plots to generate
+plot_num = input("Enter how many plots to generate: ")
+plot_num = int(plot_num)
 
 # list to hold data collected
 train_data = []
@@ -252,10 +254,11 @@ for i in range(0, plot_num):
 	fig = plot_temp(temp, time_idx, i)
 	fig2 = plot_salt(salt, time_idx, i)
 	cid = fig.canvas.mpl_connect('button_press_event', onclick)
+	cid2 = fig2.canvas.mpl_connect('button_press_event', onclick)
 
 	# Select EAC
 	mass = 'EAC'
-	print('\nSelect EAC water')
+	print('Plot: ' + str(i+1) + '\nSelect EAC water')
 	input("Press Enter to continue...")
 	plt.show()
 
@@ -263,10 +266,11 @@ for i in range(0, plot_num):
 	fig = plot_temp(temp, time_idx, i)
 	fig2 = plot_salt(salt, time_idx, i)
 	cid = fig.canvas.mpl_connect('button_press_event', onclick)
+	cid2 = fig2.canvas.mpl_connect('button_press_event', onclick)
 
 	# Select BS 
 	mass = 'BS'
-	print('\nSelect bass strait water')
+	print('Plot: ' + str(i+1) + '\nSelect bass strait water')
 	input("Press Enter to continue...")
 	plt.show()
 

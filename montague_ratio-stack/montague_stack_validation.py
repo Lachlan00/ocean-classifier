@@ -3,7 +3,6 @@ Ocean classification algorithm
 ------------------------------
 Experimental program to classify two different water masses 
 based on temperature and salinity profiles. 
-TEST: use real data
 """
 
 print('_____Extracting_EAC_Ratio_Stack_____')
@@ -55,6 +54,13 @@ yEACr = []
 yTSWr = []
 xtime = []
 xmonth = []
+
+# How many NetCDF files to use (set the range)
+start = 0
+end = 277 # for 277 files (zero index but range() does not include last number)
+
+# randmoness seed (for shuffling)
+np.random.seed(420)
 
 # for getting time data
 def grab_sst_time(time_idx):
@@ -113,6 +119,8 @@ def grab_prob(time_idx):
 
 # __Make_Model__
 
+print('\nBuilding predictive model from training data...')
+
 # Read in classification training data
 csv_data = pd.read_csv(args.input_csv_file, parse_dates = ['datetime'], 
                         infer_datetime_format = True) #Read as DateTime obsject
@@ -129,9 +137,38 @@ train_data = pd.DataFrame(data=train_data)
 # replace current data strings with binary integers
 train_data['class'] = train_data['class'].replace(to_replace='EAC', value=1)
 train_data['class'] = train_data['class'].replace(to_replace='BS', value=0)
+# remove 25% of data for modle validation 
+train_data = train_data.iloc[np.random.permutation(np.arange(len(train_data)))].reset_index(drop=True) # shuffle dataset
+split_idx = int(len(train_data) - int(len(train_data))*0.7) # point to split df (70/30%)
+valid_data = train_data.iloc[split_idx:, :].reset_index(drop=True)
+train_data = train_data.iloc[:split_idx, :].reset_index(drop=True)
+
 # fit logistic regression to the training data
 lr_model = LogisticRegression()
 lr_model = lr_model.fit(train_data[['var1','var2']], np.ravel(train_data[['class']]))
+
+# __Validate_Model__ 
+# NOTE: Temp method, later use cross validation
+
+print('\nValidating model...')
+
+valid_probs = lr_model.predict_proba(valid_data[['var1','var2']])
+valid_TSW, valid_EAC = zip(*valid_probs)
+valid_EAC = list(valid_EAC)
+valid_df = {'prob': valid_EAC, 'class': valid_data['class']}
+valid_df = pd.DataFrame(data=valid_df)
+valid_df['result'] = [1 if x >= 0.5 else 0 for x in valid_df['prob']]
+
+# calculate accuracy
+valid_result = 0
+for idx, row in valid_df.iterrows():
+    if int(row['class']) == int(row['result']):
+        valid_result = valid_result + 1
+valid_result = valid_result/len(valid_df['class'])
+print('\nAccuracy of model is calculated to be at ' + str("%.2f" % (valid_result*100)) + ' %')
+print('Later version of program will use \"Cross Validation\"\n')
+# "%.2f" % value - rounds printing to 2 decimal places
+# Will later add cross validation to the model
 
 # __Main_Program__
 
@@ -140,10 +177,6 @@ in_directory = "/Users/lachlanphillips/PhD_Large_Data/ROMS/Montague_subset"
 file_ls = [f for f in listdir(in_directory) if isfile(join(in_directory, f))]
 file_ls = list(filter(lambda x:'naroom_avg' in x, file_ls))
 file_ls = sorted(file_ls)
-
-# set range
-start = 0
-end = 277 # for 277 files (zero index but range() does not include last number)
 
 # get lats and lons
 nc_file = in_directory + '/' + file_ls[0]

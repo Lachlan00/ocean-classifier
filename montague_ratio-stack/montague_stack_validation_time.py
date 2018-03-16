@@ -3,7 +3,7 @@ Ocean classification algorithm
 ------------------------------
 Experimental program to classify two different water masses 
 based on temperature and salinity profiles. 
-TEST: use real data
+Added time dependance variable
 """
 
 print('_____Extracting_EAC_Ratio_Stack_____')
@@ -24,11 +24,7 @@ from netCDF4 import Dataset # reads netCDF file
 from os import listdir
 from os.path import isfile, join
 from itertools import compress # for filteriung using boolean masks
-
-# animation modules
-import moviepy.editor as mpy # creates animation
-from moviepy.video.io.bindings import mplfig_to_npimage # converts map to numpy array
-from matplotlib.backends.backend_agg import FigureCanvasAgg # draws canvas so that map can be converted
+import sys
 
 # __Setup__
 
@@ -50,11 +46,18 @@ prob_min = 0.
 
 # lists to collect ratio data
 yEAC = []
-yTSW = []
-yEACr = []
-yTSWr = []
 xtime = []
-xmonth = []
+
+
+# How many NetCDF files to use (set the range)
+start = 0
+end = 277 # for 277 files (zero index but range() does not include last number)
+
+# randmoness seed (for shuffling)
+np.random.seed(420)
+
+# add to list witout append
+def add(lst, obj, index): return lst[:index] + [obj] + lst[index:]
 
 # for getting time data
 def grab_sst_time(time_idx):
@@ -74,64 +77,89 @@ def grab_prob(time_idx):
     # get 'frame_time'
     frame_time = grab_sst_time(frame_idx)
 
-    # get list of temperature and salinity values from subset
-    temp = []
-    salt = []
+    # set month of year
+    MoY_val = int(frame_time.month)
 
-    # append values
-    for i, j in point_list:
-    	temp.append(fh.variables['temp'][frame_idx,29,i,j])
-    	salt.append(fh.variables['salt'][frame_idx,29,i,j])
+    point_list = zip(eta_rho, xi_rho)
+
+    temp = fh.variables['temp'][frame_idx,29][eta_rho,xi_rho]
+    salt = fh.variables['salt'][frame_idx,29][eta_rho,xi_rho]
 
     data = {'var1': temp, 'var2': salt}
     data = pd.DataFrame(data=data)
+    data['MoY'] = MoY_val
     # remove masked floats
     data = data[data.var1 >= 1]
 
     # calculate probabilities
-    probs = lr_model.predict_proba(data[['var1','var2']])
+    probs = lr_model.predict_proba(data[['var1','var2','MoY']])
     prob_TSW, prob_EAC = zip(*probs)
     # convert tuples to list
     prob_EAC = list(prob_EAC)
-    # sub back in nans
-    prob_EAC = [x if x != 0.0 else np.nan for x in prob_EAC]
     # make 1D array
     prob_EAC = np.asarray(prob_EAC)
-    # make 2D array (not required in subset as not being plotted)
-    # prob_EAC = np.reshape(prob_EAC, (-1, 165))
 
     # calulcate ratio metric
     count_EAC = np.count_nonzero(prob_EAC > 0.5)
-    count_TSW = np.count_nonzero(prob_EAC < 0.5)
     # add to lists
-    yEAC.append(count_EAC)
-    yTSW.append(count_TSW)
-    yEACr.append(count_EAC/473)
-    yTSWr.append(count_TSW/473)
-    xtime.append(frame_time)
-    xmonth.append(frame_time.month)
+    return count_EAC, frame_time
 
 # __Make_Model__
+
+print('\nBuilding predictive model from training data...')
 
 # Read in classification training data
 csv_data = pd.read_csv(args.input_csv_file, parse_dates = ['datetime'], 
                         infer_datetime_format = True) #Read as DateTime obsject
+
+# add "month of year" (MoY) to dataset 
+csv_data['MoY'] = [int(x.month) for x in csv_data['datetime']]
 
 # make training dataset model
 # create data points for training algorithm
 # 1 = classA (EAC), 0 = classB (TS)
 var1 = list(csv_data['temp'])
 var2 = list(csv_data['salt'])
+MoY = list(csv_data['MoY'])
 water_class = list(csv_data['class'])
 # make data frame
-train_data = {'var1': var1, 'var2': var2, 'class': water_class}
+train_data = {'var1': var1, 'var2': var2, 'MoY': MoY, 'class': water_class}
 train_data = pd.DataFrame(data=train_data)
 # replace current data strings with binary integers
 train_data['class'] = train_data['class'].replace(to_replace='EAC', value=1)
 train_data['class'] = train_data['class'].replace(to_replace='BS', value=0)
+# remove 25% of data for modle validation 
+train_data = train_data.iloc[np.random.permutation(np.arange(len(train_data)))].reset_index(drop=True) # shuffle dataset
+split_idx = int(len(train_data) - int(len(train_data))*0.7) # point to split df (70/30%)
+valid_data = train_data.iloc[split_idx:, :].reset_index(drop=True)
+train_data = train_data.iloc[:split_idx, :].reset_index(drop=True)
+
 # fit logistic regression to the training data
 lr_model = LogisticRegression()
-lr_model = lr_model.fit(train_data[['var1','var2']], np.ravel(train_data[['class']]))
+lr_model = lr_model.fit(train_data[['var1','var2','MoY']], np.ravel(train_data[['class']]))
+
+# __Validate_Model__ 
+# NOTE: Temp method, later use cross validation
+
+print('\nValidating model...')
+
+valid_probs = lr_model.predict_proba(valid_data[['var1','var2','MoY']])
+valid_TSW, valid_EAC = zip(*valid_probs)
+valid_EAC = list(valid_EAC)
+valid_df = {'prob': valid_EAC, 'class': valid_data['class']}
+valid_df = pd.DataFrame(data=valid_df)
+valid_df['result'] = [1 if x >= 0.5 else 0 for x in valid_df['prob']]
+
+# calculate accuracy
+valid_result = 0
+for idx, row in valid_df.iterrows():
+    if int(row['class']) == int(row['result']):
+        valid_result = valid_result + 1
+valid_result = valid_result/len(valid_df['class'])
+print('\nAccuracy of model is calculated to be at ' + str("%.2f" % (valid_result*100)) + ' %')
+print('Later version of program will use \"Cross Validation\"\n')
+# "%.2f" % value - rounds printing to 2 decimal places
+# Will later add cross validation to the model
 
 # __Main_Program__
 
@@ -140,10 +168,6 @@ in_directory = "/Users/lachlanphillips/PhD_Large_Data/ROMS/Montague_subset"
 file_ls = [f for f in listdir(in_directory) if isfile(join(in_directory, f))]
 file_ls = list(filter(lambda x:'naroom_avg' in x, file_ls))
 file_ls = sorted(file_ls)
-
-# set range
-start = 0
-end = 277 # for 277 files (zero index but range() does not include last number)
 
 # get lats and lons
 nc_file = in_directory + '/' + file_ls[0]
@@ -168,15 +192,12 @@ for i in point_list:
 	eta_rho.append(int(i/165))
 	xi_rho.append(int(i%165))
 
-point_list = zip(eta_rho,xi_rho)
-point_list = set(point_list) # due to zip behaviour in Python3
-
 # get data for each file (may take a while)
 for i in range(start, end):
     # import file
     nc_file = in_directory + '/' + file_ls[i]
     fh = Dataset(nc_file, mode='r')
-    print('getting data from file: '+file_ls[i]+' | '+str(i+1)+' of '+ str(len(file_ls)))
+    print('Extracting data from file: '+file_ls[i]+' | '+str(i+1)+' of '+ str(len(file_ls)))
     # fname = str(file_ls[i])[11:16]
 
     # extract time
@@ -184,13 +205,18 @@ for i in range(start, end):
 
     # get data
     for i in range(0, len(time)):
-        grab_prob(i)
+        yEAC_proto, xtime_proto = grab_prob(i)
+        yEAC, xtime = add(yEAC, yEAC_proto, i), add(xtime, xtime_proto, i)
     # close file
     fh.close()
 
 # make dataframe from ratio metric lists
-df_ratio  = {'yEAC': yEAC, 'yTSW': yTSW, 'yEACr': yEACr, 'yTSWr': yTSWr, 'xtime': xtime, 'xmonth': xmonth}
+df_ratio  = {'yEAC': yEAC, 'xtime': xtime}
 df_ratio = pd.DataFrame(data=df_ratio)
+df_ratio['yTSW'] = [473 - x for x in df_ratio['yEAC']]
+df_ratio['yEACr'] = [x/473 for x in df_ratio['yEAC']]
+df_ratio['yTSWr'] = [x/473 for x in df_ratio['yTSW']]
+df_ratio['xmonth'] = [x.month for x in df_ratio['xtime']]
 # remove duplicates
 df_ratio = df_ratio.drop_duplicates('xtime').reset_index()
 print(df_ratio)
@@ -198,13 +224,16 @@ print(df_ratio)
 # save to csv
 print('_____Please_Wait_____')
 print('Writing ocean data to file...')
-output_fn = '../montague_ratio-stack/output/' + 'mont-stack2_' + str(start).zfill(3) + '-' + str(end).zfill(3) + '.csv' 
+dt = datetime.now()
+dt = dt.strftime('%Y%m%d-%H%M')
+output_fn = '../montague_ratio-stack/output/' + 'mont-stack2_' + str(start).zfill(3) + '-' + str(end).zfill(3) + '_' + dt + '.csv' 
 df_ratio.to_csv(output_fn, index=False)
 
 # make stack plot of results
 print('Displaying plot - close plot to continue...')
 plt.close('all')
 fig, ax = plt.subplots()
+yTSWr, yEACr = list(df_ratio['yTSWr']), list(df_ratio['yEACr'])
 ax.stackplot(xtime, yTSWr, yEACr)
 plt.show()
 

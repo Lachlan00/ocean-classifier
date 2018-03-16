@@ -1,0 +1,17 @@
+Notes for methods:
+
+target variables
+predictor variables
+binary classification
+
+
+Notes:
+Justify why use salinity and temperature as predictor variables (also time)
+
+- correlation between variables? (salt/temp)
+	- pearson correlation 
+
+Need some validation trainng data (70-30)
+
+Cross Validation
+divde data into folds
