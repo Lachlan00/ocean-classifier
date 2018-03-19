@@ -213,7 +213,7 @@ check_ls = list(filter(lambda x:'train-data_seed' in x, check_ls)) # filter out 
 check_ls = list(map(lambda x: int(x[16:22]), check_ls)) # make list of used seed integers
 
 # temp rand variable
-rand = check_ls[1]
+rand = randint(100000, 999999)
 
 # check if seed has been used
 print('Generating original random seed...')
