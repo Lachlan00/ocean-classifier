@@ -61,6 +61,29 @@ def get_prob(temp, salt, lr_model):
 
     return prob_EAC
 
+    # get probs
+
+def des_func(temp, salt, lr_model):
+    # ravel to 1D array
+    temp1d = temp.ravel()
+    salt1d = salt.ravel()
+    # make data frame and replace NaNs
+    data = {'var1': temp1d, 'var2': salt1d}
+    data = pd.DataFrame(data=data)
+    data = data.fillna(-9999)
+    # calculate probabilities
+    probs = lr_model.decision_function(data[['var1','var2']])
+    # convert tuples to list
+    probs = list(probs)
+    # sub back in nans
+    probs = [np.nan if x <= -1000.0 else x for x in probs]
+    # make 1D array
+    probs = np.asarray(probs)
+    # make 2D array
+    probs = np.reshape(probs, (-1, 165))
+
+    return probs
+
 # add to list witout append
 def add(lst, obj, index): return lst[:index] + [obj] + lst[index:]
 
@@ -76,16 +99,18 @@ def grab_sst_time(time_idx):
     frame_time = dtcon_offset
     return frame_time
 
-def make_plot(data,lons,lats,title):
+def make_plot(data,lons,lats,title,vmin,vmax):
     fig = plt.figure()
     fig.subplots_adjust(left=0., right=1., bottom=0., top=0.9)
     # draw stuff
     m.drawcoastlines()
     m.fillcontinents(color='black')
     # plot color
-    m.pcolor(lons,lats,np.squeeze(data), latlon = True ,vmin=-0.2, vmax=0.2, cmap='bwr')
+    m.pcolor(lons,lats,np.squeeze(data), latlon = True ,vmin=vmin, vmax=vmax, cmap='plasma')
+    plt.colorbar()
     # datetime title
     plt.title(title)
+    plt.tight_layout()
 
     return fig
 
@@ -147,7 +172,7 @@ for i in range(start, end):
         temp = fh.variables['temp'][j,29,:,:] 
         salt = fh.variables['salt'][j,29,:,:]
         # get probs 
-        prob_EAC = get_prob(temp, salt, lr_model)
+        prob_EAC = des_func(temp, salt, lr_model)
         # add data to lists
         prob_ls = add(prob_ls, prob_EAC, idx)
         time_ls = add(time_ls, frame_time, idx)
@@ -181,13 +206,13 @@ winter_anom = winter_mean - total_mean
 # make plots
 # Setup map
 ##############################################################################
-m = Basemap(projection='merc', llcrnrlat=-38.050653, urcrnrlat=-34.453367,\
-        llcrnrlon=147.996456, urcrnrlon=152.457344, lat_ts=20, resolution='h')
+m = Basemap(projection='merc', llcrnrlat=-37.15, urcrnrlat=-35.35,\
+        llcrnrlon=149.11, urcrnrlon=151.34, lat_ts=20, resolution='h')
 ##############################################################################
 
-fig1 = make_plot(summer_anom, lons, lats, 'summer')
-fig2 = make_plot(winter_anom, lons, lats, 'winter')
-fig2 = make_plot(total_mean, lons, lats, 'mean')
+fig1 = make_plot(summer_anom, lons, lats, 'summer', 3.75, 5.25)
+fig2 = make_plot(winter_anom, lons, lats, 'winter', -5, -3.6)
+fig3 = make_plot(total_mean, lons, lats, 'mean',-4, 4)
 
 plt.show()
 
