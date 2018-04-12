@@ -54,8 +54,10 @@ bath = fh.variables['h'][:]
 bath = bath/1000
 cs = m.pcolor(lons,lats,np.squeeze(bath), latlon = True ,vmin=0, vmax=5, cmap=cmocean.cm.deep)
 cbar = plt.colorbar()
+CS = m.contour(lons,lats,np.squeeze(bath),[0.5], colors='k', latlon=True, linestyles='solid', alpha=0.9)
 cbar.ax.invert_yaxis()
 cbar.ax.set_ylabel('Depth (km)', rotation=270, labelpad=16, size=12)
+
 
 
 # add region zone

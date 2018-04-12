@@ -21,6 +21,7 @@ from os import listdir
 from os.path import isfile, join
 import argparse
 from scipy import stats
+import cmocean
 
 # __SETUP__
 
@@ -38,6 +39,12 @@ end = 277
 prob_ls = [] 
 time_ls = []
 
+# range for floats
+def frange(x, y, jump):
+  while x < y:
+    yield x
+    x += jump
+
 # get probs
 def get_prob(temp, salt, lr_model):
     # ravel to 1D array
@@ -46,9 +53,10 @@ def get_prob(temp, salt, lr_model):
     # make data frame and replace NaNs
     data = {'var1': temp1d, 'var2': salt1d}
     data = pd.DataFrame(data=data)
+    data['DoY'] = DoY_val
     data = data.fillna(-9999)
     # calculate probabilities
-    probs = lr_model.predict_proba(data[['var1','var2']])
+    probs = lr_model.predict_proba(data[['var1','var2','DoY']])
     prob_TSW, prob_EAC = zip(*probs)
     # convert tuples to list
     prob_EAC = list(prob_EAC)
@@ -70,9 +78,10 @@ def des_func(temp, salt, lr_model):
     # make data frame and replace NaNs
     data = {'var1': temp1d, 'var2': salt1d}
     data = pd.DataFrame(data=data)
+    data['DoY'] = DoY_val
     data = data.fillna(-9999)
     # calculate probabilities
-    probs = lr_model.decision_function(data[['var1','var2']])
+    probs = lr_model.decision_function(data[['var1','var2','DoY']])
     # convert tuples to list
     probs = list(probs)
     # sub back in nans
@@ -99,18 +108,23 @@ def grab_sst_time(time_idx):
     frame_time = dtcon_offset
     return frame_time
 
-def make_plot(data,lons,lats,title,vmin,vmax):
+def make_plot(data,lons,lats,title,vmin,vmax,cmap):
     fig = plt.figure()
-    fig.subplots_adjust(left=0., right=1., bottom=0., top=0.9)
     # draw stuff
-    m.drawcoastlines()
-    m.fillcontinents(color='black')
+    m.drawcoastlines(color='black', linewidth=0.7)
+    m.fillcontinents(color='#A0A0A0')
     # plot color
-    m.pcolor(lons,lats,np.squeeze(data), latlon = True ,vmin=vmin, vmax=vmax, cmap='plasma')
+    # cs = m.pcolor(lons,lats,np.squeeze(data), latlon = True ,vmin=vmin, vmax=vmax, cmap=cmap)
+    cs = m.contourf(lons, lats, np.squeeze(data), list(frange(vmin, vmax, 0.2)), cmap=cmap, latlon=True, extend='both')
     plt.colorbar()
     # datetime title
     plt.title(title)
     plt.tight_layout()
+
+    parallels = np.arange(-81.,0,.5)
+    m.drawparallels(parallels,labels=[True,False,False,True], linewidth=1, dashes=[3,3], color='#707070')
+    meridians = np.arange(10.,351.,.5)
+    m.drawmeridians(meridians,labels=[True,False,False,True], linewidth=1, dashes=[3,3], color='#707070')
 
     return fig
 
@@ -120,21 +134,25 @@ def make_plot(data,lons,lats,title,vmin,vmax):
 csv_data = pd.read_csv(args.input_csv_file, parse_dates = ['datetime'], 
                         infer_datetime_format = True) #Read as DateTime obsject
 
+# add "Day of year" (DoY) to dataset 
+csv_data['DoY'] = [int(x.day) for x in csv_data['datetime']]
+
 # make training dataset model
 # create data points for training algorithm
 # 1 = classA (EAC), 0 = classB (TS)
 var1 = list(csv_data['temp'])
 var2 = list(csv_data['salt'])
+DoY = list(csv_data['DoY'])
 water_class = list(csv_data['class'])
 # make data frame
-train_data = {'var1': var1, 'var2': var2, 'class': water_class}
+train_data = {'var1': var1, 'var2': var2, 'DoY': DoY, 'class': water_class}
 train_data = pd.DataFrame(data=train_data)
 # replace current data strings with binary integers
 train_data['class'] = train_data['class'].replace(to_replace='EAC', value=1)
 train_data['class'] = train_data['class'].replace(to_replace='BS', value=0)
 # fit logistic regression to the training data
 lr_model = LogisticRegression()
-lr_model = lr_model.fit(train_data[['var1','var2']], np.ravel(train_data[['class']]))
+lr_model = lr_model.fit(train_data[['var1','var2','DoY']], np.ravel(train_data[['class']]))
 
 # __Grab_Data__
 
@@ -168,6 +186,7 @@ for i in range(start, end):
     # iterate through all time steps
     for j in range(0, len(time)):
         frame_time = grab_sst_time(int(j))
+        DoY_val = int(frame_time.day)
         # get data
         temp = fh.variables['temp'][j,29,:,:] 
         salt = fh.variables['salt'][j,29,:,:]
@@ -184,7 +203,7 @@ for i in range(start, end):
 # make time_ls into dataframe and calculate months
 time_df = {'datetime':time_ls, 'month':[x.month for x in time_ls]}
 time_df = pd.DataFrame(data=time_df)
-summer = [1,2,3,10,11,12]
+summer = [1,2,3,4,5,12]
 #time_df['season'] = ['summer' if x['month'] in summer else 'winter' for x in time_df]
 time_df['season'] = time_df.month.apply(lambda x: 'summer' if x in summer else 'winter')
 # index lists
@@ -200,6 +219,11 @@ total_mean = np.mean(data, axis=2)
 summer_mean = np.mean(data[:,:,summer_ls], axis=2)
 winter_mean = np.mean(data[:,:,winter_ls], axis=2)
 
+# calculate std
+total_std = np.std(data, axis=2)
+np.savetxt("./variance_data.csv", total_std, delimiter=",")
+
+
 summer_anom = summer_mean - total_mean
 winter_anom = winter_mean - total_mean
 
@@ -210,9 +234,9 @@ m = Basemap(projection='merc', llcrnrlat=-37.15, urcrnrlat=-35.35,\
         llcrnrlon=149.11, urcrnrlon=151.34, lat_ts=20, resolution='h')
 ##############################################################################
 
-fig1 = make_plot(summer_anom, lons, lats, 'summer', 3.75, 5.25)
-fig2 = make_plot(winter_anom, lons, lats, 'winter', -5, -3.6)
-fig3 = make_plot(total_mean, lons, lats, 'mean',-4, 4)
+# fig1 = make_plot(summer_anom, lons, lats, 'summer', 15, 21)
+# fig2 = make_plot(winter_anom, lons, lats, 'winter', -21, -15)
+fig3 = make_plot(total_std, lons, lats, 'mean',20, 25, cmocean.cm.thermal)
 
 plt.show()
 

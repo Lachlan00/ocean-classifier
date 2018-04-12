@@ -52,7 +52,7 @@ prob_max = 1.
 prob_min = 0.
 
 # point of shelf depth
-depth_mask = 200
+depth_mask = 500
 
 # lists to collect ratio data
 yEAC = []
