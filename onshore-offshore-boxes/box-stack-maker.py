@@ -208,7 +208,7 @@ point_list = []
 j = 0
 # iterate over tuple points and keep every point that is in box
 for i in point_tuple:
-    if ymin <= i[0] <= ymax and xmin <= i[1] <=xmax and depth_mask1 <= i[2] <= depth_mask2:
+    if ymin <= i[0] <= ymax and xmin <= i[1] <=xmax and depth_mask1 < i[2] < depth_mask2:
         point_list.append(j)
     j = j + 1
 
@@ -250,7 +250,7 @@ df_ratio1 = df_ratio1.drop_duplicates('xtime').reset_index(drop=True)
 df_ratio1 = df_ratio1.sort_values('xtime').reset_index(drop=True)
 
 # make dataframe from ratio metric lists
-df_ratio2  = {'yEAC': yEAC1, 'yTSW': yTSW1, 'xtime': xtime}
+df_ratio2  = {'yEAC': yEAC2, 'yTSW': yTSW2, 'xtime': xtime}
 df_ratio2 = pd.DataFrame(data=df_ratio2)
 total_vals = df_ratio2['yEAC'][0] + df_ratio2['yTSW'][0]
 df_ratio2['yEACr'] = [x/total_vals for x in df_ratio2['yEAC']]
@@ -277,4 +277,17 @@ dt = dt.strftime('%Y%m%d-%H%M')
 output_fn = '../onshore-offshore-boxes/outputs/' + 'offshore-stack_' + str(start).zfill(3) + '-' + str(end).zfill(3) + '_' + dt + '.csv' 
 df_ratio2.to_csv(output_fn, index=False)
 
+# make stack plot of results
+print('Displaying plot - close plot to continue...')
+plt.close('all')
+fig1, ax1 = plt.subplots()
+yTSWr, yEACr, xtime = list(df_ratio1['yTSWr']), list(df_ratio1['yEACr']), list(df_ratio1['xtime'])
+ax1.stackplot(xtime, yTSWr, yEACr)
+fig2, ax2 = plt.subplots()
+yTSWr, yEACr, xtime = list(df_ratio2['yTSWr']), list(df_ratio2['yEACr']), list(df_ratio2['xtime'])
+ax2.stackplot(xtime, yTSWr, yEACr)
+
+plt.show()
+
 print('_____Program_End_____')
+
