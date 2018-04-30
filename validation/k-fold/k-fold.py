@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 import argparse
 from scipy import stats
+from sklearn.model_selection import train_test_split
+import copy
 
 #############
 #___SETUP___#
@@ -21,7 +23,7 @@ csv_data = pd.read_csv(args.input_csv_file, parse_dates = ['datetime'],
                         infer_datetime_format = True) #Read as DateTime obsject
 
 # add "month of year" (MoY) to dataset 
-csv_data['MoY'] = [int(x.day) for x in csv_data['datetime']]
+csv_data['DoY'] = [int(x.day) for x in csv_data['datetime']]
 
 # set randomness seed
 np.random.seed(420)
@@ -31,10 +33,10 @@ np.random.seed(420)
 # 1 = classA (EAC), 0 = classB (TS)
 var1 = list(csv_data['temp'])
 var2 = list(csv_data['salt'])
-MoY = list(csv_data['MoY'])
+DoY = list(csv_data['DoY'])
 water_class = list(csv_data['class'])
 # make data frame
-train_data = {'var1': var1, 'var2': var2, 'MoY': MoY, 'class': water_class}
+train_data = {'var1': var1, 'var2': var2, 'DoY': DoY, 'class': water_class}
 train_data = pd.DataFrame(data=train_data)
 # replace current data strings with binary integers
 train_data['class'] = train_data['class'].replace(to_replace='EAC', value=1)
@@ -56,16 +58,18 @@ results = []
 # run classification on each partition
 for i in range(0,10):
     print('Model run ' + str(i+1) + ' of 10')
-    model_dat = train_data[i]
-    train_dat = train_data.remove(i)
+    store_data = copy.deepcopy(train_data)
+    model_dat = store_data[i]
+    del store_data[i]
+    test_dat = pd.concat(store_data)
     # fit logistic regression to the training data
     lr_model = LogisticRegression()
-    lr_model = lr_model.fit(train_dat[['var1','var2','MoY']], np.ravel(train_dat[['class']]))
+    lr_model = lr_model.fit(model_dat[['var1','var2','DoY']], np.ravel(model_dat[['class']]))
     # run predictive model
-    prob = lr_model.predict_proba(model_dat[['var1','var2','MoY']])
-    _, prob = zip(*probs)
-    prob = list(probs)
-    df = {'prob': prob, 'class': model_dat['class']}
+    prob = lr_model.predict_proba(test_dat[['var1','var2','DoY']])
+    _, prob = zip(*prob)
+    prob = list(prob)
+    df = {'prob': prob, 'class': test_dat['class']}
     df = pd.DataFrame(data=df)
     df['result'] = [1 if x >= 0.5 else 0 for x in df['prob']]
     # test results
@@ -78,7 +82,7 @@ for i in range(0,10):
     results.append(valid_result)
 
 print('Here are the reuslts of the 10 runs...')
-print('results')
+print(results)
 print('Average accuary was ' + str(sum(results)/len(results)))
 
 

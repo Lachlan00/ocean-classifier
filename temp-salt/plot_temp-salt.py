@@ -311,7 +311,7 @@ if plot_type == 'final':
 		x = [i/12 + 1994 for i in x]
 		dat['x'] = x
 		plt.plot( 'x', 'bath_temp', data=dat, color='grey', marker='+', alpha=0.4, mew=2)
-		ax1 = sns.regplot(x='x', y="bath_temp", data=dat, color='r', marker="+", scatter_kws={'alpha':0}, ci=95)
+		ax1 = sns.regplot(x='x', y="bath_temp", data=dat, color='r', marker="+", scatter_kws={'alpha':0}, ci=95, truncate=True)
 		plt.title('Monthly Mean Temperature', size=15)
 		ax1.set(xticks=list(range(1994,2017,2)))
 		ax1.set(xlabel='')
@@ -322,7 +322,7 @@ if plot_type == 'final':
 		x = [i/12 + 1994 for i in x]
 		dat['x'] = x
 		plt.plot( 'x', 'bath_salt', data=dat, color='grey', marker='+', alpha=0.4, mew=2)
-		ax2 = sns.regplot(x='x', y="bath_salt", data=dat, color='g', marker="+", scatter_kws={'alpha':0}, ci=95)
+		ax2 = sns.regplot(x='x', y="bath_salt", data=dat, color='g', marker="+", scatter_kws={'alpha':0}, ci=95, truncate=True)
 		plt.title('Monthly Mean Salinity', size=15)
 		ax2.set(xticks=list(range(1994,2017,2)))
 		ax2.set(xlabel='')
